@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SUMO Network Configuration for 5G Handover Simulation
+  Area: X[175m, 1250m] Y[230m, 830m]
+  This creates a simple urban road network for UE mobility
+-->
+<net version="1.0" junctionCornerDetail="5" limitTurnSpeed="5.50" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/net_file.xsd">
+    <location netOffset="0.00,0.00" convBoundary="0.00,0.00,1250.00,830.00" origBoundary="175.00,230.00,1250.00,830.00" projParameter="!"/>
+    
+    <!-- Junctions -->
+    <junction id="j1" type="priority" x="400.00" y="400.00" incLanes="e1_0 e2_1" intLanes="j1_0_1" shape="395.00,395.00 405.00,395.00 405.00,405.00 395.00,405.00"/>
+    <junction id="j2" type="priority" x="800.00" y="400.00" incLanes="e2_0 e3_1" intLanes="j2_0_1" shape="795.00,395.00 805.00,395.00 805.00,405.00 795.00,405.00"/>
+    <junction id="j3" type="priority" x="400.00" y="700.00" incLanes="e4_0 e1_1" intLanes="j3_0_1" shape="395.00,695.00 405.00,695.00 405.00,705.00 395.00,705.00"/>
+    <junction id="j4" type="priority" x="800.00" y="700.00" incLanes="e3_0 e4_1" intLanes="j4_0_1" shape="795.00,695.00 805.00,695.00 805.00,705.00 795.00,705.00"/>
+    
+    <!-- Edges -->
+    <edge id="e1" from="j1" to="j3" priority="13" numLanes="1" speed="60.00" length="300.00" shape="400.00,400.00 400.00,700.00"/>
+    <edge id="e2" from="j2" to="j1" priority="13" numLanes="1" speed="60.00" length="400.00" shape="800.00,400.00 400.00,400.00"/>
+    <edge id="e3" from="j4" to="j2" priority="13" numLanes="1" speed="60.00" length="300.00" shape="800.00,700.00 800.00,400.00"/>
+    <edge id="e4" from="j3" to="j4" priority="13" numLanes="1" speed="60.00" length="400.00" shape="400.00,700.00 800.00,700.00"/>
+    
+    <!-- Lanes -->
+    <lane id="e1_0" index="0" speed="60.00" length="300.00" shape="400.00,400.00 400.00,700.00" width="3.20"/>
+    <lane id="e1_1" index="0" speed="60.00" length="300.00" shape="400.00,700.00 400.00,400.00" width="3.20"/>
+    <lane id="e2_0" index="0" speed="60.00" length="400.00" shape="800.00,400.00 400.00,400.00" width="3.20"/>
+    <lane id="e2_1" index="0" speed="60.00" length="400.00" shape="400.00,400.00 800.00,400.00" width="3.20"/>
+    <lane id="e3_0" index="0" speed="60.00" length="300.00" shape="800.00,700.00 800.00,400.00" width="3.20"/>
+    <lane id="e3_1" index="0" speed="60.00" length="300.00" shape="800.00,400.00 800.00,700.00" width="3.20"/>
+    <lane id="e4_0" index="0" speed="60.00" length="400.00" shape="400.00,700.00 800.00,700.00" width="3.20"/>
+    <lane id="e4_1" index="0" speed="60.00" length="400.00" shape="800.00,700.00 400.00,700.00" width="3.20"/>
+    
+    <!-- Internal lanes for junctions -->
+    <lane id="j1_0_1" index="0" speed="13.89" length="10.00" shape="400.00,400.00 400.00,400.00" width="3.20"/>
+    <lane id="j2_0_1" index="0" speed="13.89" length="10.00" shape="800.00,400.00 800.00,400.00" width="3.20"/>
+    <lane id="j3_0_1" index="0" speed="13.89" length="10.00" shape="400.00,700.00 400.00,700.00" width="3.20"/>
+    <lane id="j4_0_1" index="0" speed="13.89" length="10.00" shape="800.00,700.00 800.00,700.00" width="3.20"/>
+</net>
+
