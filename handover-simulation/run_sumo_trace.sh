@@ -3,7 +3,7 @@
 # Usage: ./run_sumo_trace.sh [duration_seconds]
 
 DURATION=${1:-1000}  # Default 1000 seconds
-CONFIG_FILE="urban-scenario.sumocfg"
+CONFIG_FILE="urban-scenario1.sumocfg"
 OUTPUT_FCD="sumo-fcd-trace.xml"
 OUTPUT_CSV="sumo-trace.csv"
 OUTPUT_NS3="ns3-mobility.tcl"
@@ -37,7 +37,8 @@ sumo -c $CONFIG_FILE \
      --fcd-output.geo true \
      --end $DURATION \
      --step-length 0.1 \
-     --no-warnings
+     --no-warnings \
+     --log "sumo_simulation.log"
 
 if [ $? -eq 0 ]; then
     echo "✓ FCD trace generated: $OUTPUT_FCD"

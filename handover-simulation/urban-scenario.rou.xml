@@ -1,34 +1,71 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--
-  SUMO Routes Configuration for 5G Handover Simulation
-  Creates 10 vehicles (UEs) with random routes
--->
-<routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
-    <!-- Vehicle types with speed between 10-60 m/s (36-216 km/h) -->
-    <vType id="ue" vClass="passenger" maxSpeed="60.00" minGap="2.50" accel="2.60" decel="4.50" sigma="0.5" tau="1.0"/>
-    
-    <!-- Routes -->
-    <route id="r1" edges="e1 e4 e3 e2"/>
-    <route id="r2" edges="e2 e1 e4 e3"/>
-    <route id="r3" edges="e3 e2 e1 e4"/>
-    <route id="r4" edges="e4 e3 e2 e1"/>
-    <route id="r5" edges="e1 e4"/>
-    <route id="r6" edges="e2 e3"/>
-    <route id="r7" edges="e3 e4"/>
-    <route id="r8" edges="e4 e1"/>
-    <route id="r9" edges="e2 e1"/>
-    <route id="r10" edges="e1 e2"/>
-    
-    <!-- Vehicles (UEs) -->
-    <vehicle id="ue0" type="ue" route="r1" depart="0.00" departLane="best" departPos="random" departSpeed="random"/>
-    <vehicle id="ue1" type="ue" route="r2" depart="1.00" departLane="best" departPos="random" departSpeed="random"/>
-    <vehicle id="ue2" type="ue" route="r3" depart="2.00" departLane="best" departPos="random" departSpeed="random"/>
-    <vehicle id="ue3" type="ue" route="r4" depart="3.00" departLane="best" departPos="random" departSpeed="random"/>
-    <vehicle id="ue4" type="ue" route="r5" depart="4.00" departLane="best" departPos="random" departSpeed="random"/>
-    <vehicle id="ue5" type="ue" route="r6" depart="5.00" departLane="best" departPos="random" departSpeed="random"/>
-    <vehicle id="ue6" type="ue" route="r7" depart="6.00" departLane="best" departPos="random" departSpeed="random"/>
-    <vehicle id="ue7" type="ue" route="r8" depart="7.00" departLane="best" departPos="random" departSpeed="random"/>
-    <vehicle id="ue8" type="ue" route="r9" depart="8.00" departLane="best" departPos="random" departSpeed="random"/>
-    <vehicle id="ue9" type="ue" route="r10" depart="9.00" departLane="best" departPos="random" departSpeed="random"/>
-</routes>
 
+<!-- generated on 2025-11-15 08:38:05.848389 by Eclipse SUMO randomTrips.py UNKNOWN
+<configuration>
+    <net-file value="urban-scenario.net.xml"/>
+    <output-trip-file value="urban-scenario.trips.xml"/>
+    <route-file value="urban-scenario.rou.xml"/>
+    <end value="100.0"/>
+    <period value="10.0"/>
+</configuration>
+-->
+
+<!-- generated on 2025-11-15T08:38:05.844035+00:00 by Eclipse SUMO duarouter 1.25.0
+<duarouterConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/duarouterConfiguration.xsd">
+
+    <input>
+        <net-file value="urban-scenario.net.xml"/>
+        <route-files value="urban-scenario.trips.xml"/>
+    </input>
+
+    <output>
+        <output-file value="urban-scenario.rou.xml"/>
+        <alternatives-output value="NUL"/>
+    </output>
+
+    <time>
+        <begin value="0.0"/>
+        <end value="100.0"/>
+    </time>
+
+    <report>
+        <no-warnings value="true"/>
+        <ignore-errors value="true"/>
+        <no-step-log value="true"/>
+    </report>
+
+</duarouterConfiguration>
+-->
+
+<routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
+    <vehicle id="0" depart="0.00">
+        <route edges="C1C0 C0B0 B0A0 A0A1"/>
+    </vehicle>
+    <vehicle id="1" depart="10.00">
+        <route edges="B0C0 C0B0 B0A0"/>
+    </vehicle>
+    <vehicle id="2" depart="20.00">
+        <route edges="C2C1 C1D1"/>
+    </vehicle>
+    <vehicle id="3" depart="30.00">
+        <route edges="D1D0 D0C0 C0B0 B0B1 B1A1 A1A0"/>
+    </vehicle>
+    <vehicle id="4" depart="40.00">
+        <route edges="B2A2 A2A1 A1A0 A0B0"/>
+    </vehicle>
+    <vehicle id="5" depart="50.00">
+        <route edges="B0A0 A0A1 A1B1 B1C1 C1C0 C0B0"/>
+    </vehicle>
+    <vehicle id="6" depart="60.00">
+        <route edges="A0A1 A1A2 A2B2"/>
+    </vehicle>
+    <vehicle id="7" depart="70.00">
+        <route edges="C1C2 C2C1 C1C0 C0C1"/>
+    </vehicle>
+    <vehicle id="8" depart="80.00">
+        <route edges="B0A0 A0A1 A1B1 B1C1 C1B1"/>
+    </vehicle>
+    <vehicle id="9" depart="90.00">
+        <route edges="D0C0 C0B0 B0A0 A0A1"/>
+    </vehicle>
+</routes>

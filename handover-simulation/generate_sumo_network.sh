@@ -12,16 +12,15 @@ netgenerate --grid \
   --grid.x-number=4 \
   --grid.y-number=3 \
   --grid.length=300 \
-  --grid.length.total=false \
+  --grid.x-length=1075 \
+  --grid.y-length=600 \
   --default.speed=60 \
-  --default.lanenum=1 \
-  --output-file=$NET_FILE \
-  --begin=175 \
-  --end=1250 \
-  --begin=230 \
-  --end=830 \
+  --default.lanenumber=1 \
+  --offset.x=175 \
+  --offset.y=230 \
   --no-turnarounds=false \
-  --no-left-connections=false
+  --no-left-connections=false \
+  --output-file=$NET_FILE
 
 if [ $? -eq 0 ]; then
     echo "✓ Network generated: $NET_FILE"
