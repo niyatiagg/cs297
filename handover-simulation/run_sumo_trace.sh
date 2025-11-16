@@ -3,7 +3,7 @@
 # Usage: ./run_sumo_trace.sh [duration_seconds]
 
 DURATION=${1:-1000}  # Default 1000 seconds
-CONFIG_FILE="urban-scenario1.sumocfg"
+CONFIG_FILE="urban-scenario.sumocfg"
 OUTPUT_FCD="sumo-fcd-trace.xml"
 OUTPUT_CSV="sumo-trace.csv"
 OUTPUT_NS3="ns3-mobility.tcl"
@@ -36,7 +36,7 @@ sumo -c $CONFIG_FILE \
      --fcd-output $OUTPUT_FCD \
      --fcd-output.geo true \
      --end $DURATION \
-     --step-length 0.1 \
+     --step-length 0.5 \
      --no-warnings \
      --log "sumo_simulation.log"
 
@@ -51,8 +51,8 @@ echo ""
 echo "Step 2: Converting to CSV format..."
 
 # Use Python script if available
-if command -v python3 &> /dev/null && [ -f "sumo_to_ns3_trace.py" ]; then
-    python3 sumo_to_ns3_trace.py $OUTPUT_FCD $OUTPUT_CSV --csv
+if command -v python3 &> /dev/null && [ -f "../sumo_to_ns3_trace.py" ]; then
+    python3 ../sumo_to_ns3_trace.py $OUTPUT_FCD $OUTPUT_CSV --csv
     if [ $? -eq 0 ]; then
         echo "✓ CSV trace generated: $OUTPUT_CSV"
     fi
@@ -63,8 +63,8 @@ fi
 echo ""
 echo "Step 3: Converting to ns3 TCL format..."
 
-if command -v python3 &> /dev/null && [ -f "sumo_to_ns3_trace.py" ]; then
-    python3 sumo_to_ns3_trace.py $OUTPUT_FCD $OUTPUT_NS3
+if command -v python3 &> /dev/null && [ -f "../sumo_to_ns3_trace.py" ]; then
+    python3 ../sumo_to_ns3_trace.py $OUTPUT_FCD $OUTPUT_NS3
     if [ $? -eq 0 ]; then
         echo "✓ ns3 TCL trace generated: $OUTPUT_NS3"
     fi
