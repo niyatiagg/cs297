@@ -219,9 +219,11 @@ void MobilityTrace (Ptr<const MobilityModel> mobility)
   // Extract IMSI from context would require additional setup
 }
 
-// Periodic position and speed update
-void UpdateUePositionAndSpeed (NodeContainer ueNodes)
+// Periodic position and speed update with measurement logging
+void UpdateUePositionAndSpeed (NodeContainer ueNodes, NetDeviceContainer ueDevs)
 {
+  double time = Simulator::Now ().GetSeconds ();
+  
   for (uint32_t i = 0; i < ueNodes.GetN (); ++i)
     {
       Ptr<Node> node = ueNodes.Get (i);
@@ -232,15 +234,50 @@ void UpdateUePositionAndSpeed (NodeContainer ueNodes)
           Vector vel = mobility->GetVelocity ();
           double speed = std::sqrt (vel.x * vel.x + vel.y * vel.y);
           
-          // Get IMSI (approximate using node ID)
-          uint64_t imsi = i + 1; // This is approximate
+          // Get actual IMSI from UE device
+          uint64_t imsi = 0;
+          if (i < ueDevs.GetN ())
+            {
+              Ptr<NetDevice> ueDev = ueDevs.Get (i);
+              Ptr<LteUeNetDevice> lteUeDev = ueDev->GetObject<LteUeNetDevice> ();
+              if (lteUeDev)
+                {
+                  imsi = lteUeDev->GetImsi ();
+                }
+              else
+                {
+                  imsi = i + 1; // Fallback if device is not LTE UE device
+                }
+            }
+          else
+            {
+              imsi = i + 1; // Fallback if index is out of range
+            }
+          
           ueLastPosition[imsi] = pos;
           ueLastSpeed[imsi] = speed;
+          
+          // Periodic measurement logging (every 1 second to avoid too much data)
+          // Log position, speed, and current cell association
+          // Check if time is approximately a whole number (within 0.05 seconds)
+          double timeRemainder = time - std::floor (time);
+          if (g_logger != 0 && timeRemainder < 0.05) // Log once per second (at whole seconds)
+            {
+              uint16_t cellId = 0;
+              if (ueCurrentCell.find (imsi) != ueCurrentCell.end ())
+                {
+                  cellId = ueCurrentCell[imsi];
+                }
+              
+              // Log periodic measurement with default RSRP/RSRQ/SINR values
+              // (These would ideally come from measurement reports, but callback is commented out)
+              g_logger->LogMeasurement (time, imsi, cellId, -100.0, -20.0, 0.0, pos.x, pos.y, speed);
+            }
         }
     }
   
   // Schedule next update (every 0.1 seconds)
-  Simulator::Schedule (Seconds (0.1), &UpdateUePositionAndSpeed, ueNodes);
+  Simulator::Schedule (Seconds (0.1), &UpdateUePositionAndSpeed, ueNodes, ueDevs);
 }
 
 int
@@ -701,7 +738,7 @@ main (int argc, char *argv[])
   //                  MakeCallback (&NotifyReportUeMeasurements));
 
   // Start periodic position and speed updates
-  Simulator::Schedule (Seconds (0.1), &UpdateUePositionAndSpeed, ueNodes);
+  Simulator::Schedule (Seconds (0.1), &UpdateUePositionAndSpeed, ueNodes, ueDevs);
 
   // Install FlowMonitor for throughput statistics
   FlowMonitorHelper flowHelper;
