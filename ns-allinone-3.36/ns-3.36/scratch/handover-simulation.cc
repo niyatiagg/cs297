@@ -38,10 +38,23 @@ std::map<uint64_t, Vector> ueLastPosition; // IMSI -> Last position
 std::map<uint64_t, double> ueLastSpeed; // IMSI -> Last speed
 
 // CSV Data Logger Class
-class HandoverDataLogger
+class HandoverDataLogger : public Object
 {
 public:
-  HandoverDataLogger (std::string filename)
+  static TypeId GetTypeId (void)
+  {
+    static TypeId tid = TypeId ("HandoverDataLogger")
+      .SetParent<Object> ()
+      .AddConstructor<HandoverDataLogger> ();
+    return tid;
+  }
+
+  HandoverDataLogger ()
+  {
+    // Default constructor for Object factory
+  }
+
+  void Initialize (std::string filename)
   {
     m_file.open (filename);
     // Write CSV header
@@ -50,7 +63,7 @@ public:
            << "X_Position,Y_Position,Speed,Handover_Type\n";
   }
 
-  ~HandoverDataLogger ()
+  virtual ~HandoverDataLogger ()
   {
     if (m_file.is_open ())
       {
@@ -283,7 +296,8 @@ main (int argc, char *argv[])
   // LogComponentEnable ("LteEnbRrc", LOG_LEVEL_INFO);
 
   // Create logger
-  g_logger = CreateObject<HandoverDataLogger> ("handover_dataset.csv");
+  g_logger = CreateObject<HandoverDataLogger> ();
+  g_logger->Initialize ("handover_dataset.csv");
 
   // Create the simulation
   Ptr<LteHelper> lteHelper = CreateObject<LteHelper> ();
@@ -387,10 +401,20 @@ main (int argc, char *argv[])
           // Use SUMO TCL trace file with Ns2MobilityHelper
           NS_LOG_INFO ("Loading SUMO mobility trace from: " << sumoTraceFile);
           
+          // Verify trace file exists
+          std::ifstream traceFileCheck (sumoTraceFile.c_str ());
+          if (!traceFileCheck.good ())
+            {
+              NS_FATAL_ERROR ("SUMO trace file not found: " << sumoTraceFile 
+                              << ". Please generate it using sumo_to_ns3_trace.py or sumo_helper.py");
+            }
+          traceFileCheck.close ();
+          
           // Ns2MobilityHelper parses ns2-style TCL trace files
           // The trace file should contain commands like:
           //   $node_(0) set X_ 400.00
           //   $node_(0) set Y_ 300.00
+          //   $node_(0) set Z_ 1.5
           //   $ns_ at 0.10 "$node_(0) setdest 402.55 300.00 25.50"
           
           // Create Ns2MobilityHelper with the trace file

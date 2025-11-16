@@ -65,12 +65,38 @@ sumo --version
 
 ## Building the Simulation
 
-### Method 1: Using ns3's waf build system (Recommended)
+**Note**: NS-3.36 uses **CMake** (not waf). For older versions using waf, see the documentation.
+
+### Method 1: Using ns3's CMake build system (Recommended for NS-3.36+)
+
+1. Ensure the simulation file is in your ns3 scratch directory:
+```bash
+# The file should already be at:
+# /path/to/ns3/scratch/handover-simulation.cc
+```
+
+2. Configure and build using CMake:
+```bash
+cd /path/to/ns3
+cmake -S . -B build -DNS3_EXAMPLES=ON -DNS3_TESTS=ON
+cmake --build build
+```
+
+3. Run the simulation:
+```bash
+# Executable is named scratch_handover-simulation (with scratch_ prefix)
+./build/scratch/scratch_handover-simulation --numUes=10 --simTime=100
+```
+
+For detailed CMake build instructions, see [BUILD_AND_RUN.md](BUILD_AND_RUN.md).
+
+### Method 2: Using waf (NS-3.35 and earlier)
+
+For NS-3.35 and earlier versions that use waf:
 
 1. Copy the simulation files to your ns3 scratch directory:
 ```bash
 cp handover-simulation.cc /path/to/ns3/scratch/
-cp wscript /path/to/ns3/scratch/
 ```
 
 2. Build using waf:
@@ -80,7 +106,7 @@ cd /path/to/ns3
 ./waf --run handover-simulation
 ```
 
-### Method 2: Using Makefile (Alternative)
+### Method 3: Using Makefile (Alternative)
 
 1. Edit the `Makefile` to set your ns3 installation path:
 ```bash
@@ -108,14 +134,15 @@ g++ -std=c++11 -I/path/to/ns3/build/include \
 
 ## Running the Simulation
 
-### Basic usage:
+### Basic usage (NS-3.36 with CMake):
 ```bash
-./handover-simulation
+cd /path/to/ns3
+./build/scratch/scratch_handover-simulation
 ```
 
 ### With custom parameters:
 ```bash
-./handover-simulation --numUes=10 --numGnbs=8 --simTime=100 \
+./build/scratch/scratch_handover-simulation --numUes=10 --numGnbs=8 --simTime=100 \
                       --ueTxPower=26 --gnbTxPower=46
 ```
 
@@ -176,7 +203,11 @@ To use SUMO for urban mobility:
 
 3. Run with SUMO:
 ```bash
-./handover-simulation --useSumo=true --sumoConfig=urban-scenario.sumocfg
+# With SUMO trace (recommended for NS-3.36)
+./build/scratch/scratch_handover-simulation --sumoTrace=ns3-mobility.tcl --numUes=10 --simTime=100
+
+# Real-time SUMO integration (if available)
+./build/scratch/scratch_handover-simulation --useSumo=true --sumoConfig=urban-scenario.sumocfg
 ```
 
 **Note**: Full SUMO integration may require additional ns3 modules or custom integration code. The current implementation uses RandomWaypoint mobility as a fallback.
