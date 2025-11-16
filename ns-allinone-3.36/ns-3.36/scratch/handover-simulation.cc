@@ -112,17 +112,39 @@ void NotifyHandoverStartEnb (std::string context,
 {
   NS_LOG_INFO ("Handover start: IMSI " << imsi
                  << " from cell " << cellid << " to cell " << targetCellId);
+  
+  // Track the current cell before handover (so we can use it in HandoverEndOk)
+  if (ueCurrentCell.find (imsi) == ueCurrentCell.end ())
+    {
+      // First time we see this UE, set current cell
+      ueCurrentCell[imsi] = cellid;
+    }
+  // Note: We don't update ueCurrentCell here because the handover hasn't completed yet
+  // It will be updated in NotifyHandoverEndOkEnb
 }
 
 void NotifyHandoverEndOkEnb (std::string context,
                               uint64_t imsi,
                               uint16_t cellid,
-                              uint16_t rnti,
-                              uint16_t targetCellId)
+                              uint16_t rnti)
 {
   double time = Simulator::Now ().GetSeconds ();
+  
+  // Note: The HandoverEndOk trace only provides: imsi, cellid (current cell), rnti
+  // The target cell ID is not provided by this trace. We can infer it from the
+  // current cell association or use the cellid as both old and new.
+  uint16_t targetCellId = cellid; // Current cell after handover
+  uint16_t oldCellId = cellid;    // We don't have the old cell from this trace
+  
+  // Try to get the old cell from our tracking map
+  if (ueCurrentCell.find (imsi) != ueCurrentCell.end ())
+    {
+      oldCellId = ueCurrentCell[imsi];
+      targetCellId = cellid; // New cell is the current cellid
+    }
+  
   NS_LOG_INFO ("Handover completed: IMSI " << imsi
-                 << " from cell " << cellid << " to cell " << targetCellId);
+                 << " to cell " << cellid);
   
   // Log handover event (with default values - these would need to be extracted from traces)
   if (g_logger != 0)
@@ -138,7 +160,7 @@ void NotifyHandoverEndOkEnb (std::string context,
           speed = ueLastSpeed[imsi];
         }
       
-      g_logger->LogHandover (time, imsi, cellid, targetCellId,
+      g_logger->LogHandover (time, imsi, oldCellId, targetCellId,
                              -100.0, -100.0, -20.0, -20.0,  // RSRP/RSRQ (defaults)
                              0.0, 0.0,  // SINR (defaults)
                              0.0, 0.0,  // Throughput (would need flow monitor data)
@@ -588,10 +610,14 @@ main (int argc, char *argv[])
           lteHelper->Attach (ueDev, gnbDevs.Get (i % numGnbs));
         }
       
-      // Activate a data radio bearer
-      enum EpsBearer::Qci q = EpsBearer::GBR_CONV_VOICE;
-      EpsBearer bearer (q);
-      lteHelper->ActivateDataRadioBearer (ueDev, bearer);
+      // Note: When EPC is used (as in this simulation), data radio bearers are
+      // automatically activated by the EPC when UEs attach. We should NOT call
+      // ActivateDataRadioBearer manually when EPC is enabled.
+      // 
+      // If EPC was not being used, we would activate bearers like this:
+      // enum EpsBearer::Qci q = EpsBearer::GBR_CONV_VOICE;
+      // EpsBearer bearer (q);
+      // lteHelper->ActivateDataRadioBearer (ueDev, bearer);
     }
 
   // Create remote host for traffic
