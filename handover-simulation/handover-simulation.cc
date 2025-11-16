@@ -11,6 +11,8 @@
 #include "ns3/mobility-module.h"
 #include "ns3/config-store-module.h"
 #include "ns3/lte-module.h"
+// Ns2MobilityHelper is included in mobility-module.h
+// #include "ns3/ns2-mobility-helper.h"  // Uncomment if separate header needed
 #include "ns3/internet-module.h"
 #include "ns3/applications-module.h"
 #include "ns3/point-to-point-module.h"
@@ -255,6 +257,7 @@ main (int argc, char *argv[])
   bool useSumo = false; // Set to true if SUMO is configured
   std::string sumoConfigFile = "urban-scenario.sumocfg";
   std::string sumoBinary = "/usr/bin/sumo";
+  std::string sumoTraceFile = ""; // Path to SUMO TCL trace file (e.g., "ns3-mobility.tcl")
   
   // Command line arguments
   CommandLine cmd;
@@ -263,6 +266,7 @@ main (int argc, char *argv[])
   cmd.AddValue ("simTime", "Simulation time in seconds", simTime);
   cmd.AddValue ("useSumo", "Use SUMO for mobility", useSumo);
   cmd.AddValue ("sumoConfig", "SUMO configuration file", sumoConfigFile);
+  cmd.AddValue ("sumoTrace", "SUMO TCL trace file (for ns2 mobility)", sumoTraceFile);
   cmd.AddValue ("ueTxPower", "UE transmit power (dBm)", ueTxPower);
   cmd.AddValue ("gnbTxPower", "gNB transmit power (dBm)", gnbTxPower);
   cmd.AddValue ("targetBler", "Target BLER", targetBler);
@@ -373,23 +377,53 @@ main (int argc, char *argv[])
   // Create mobility model for UEs
   MobilityHelper ueMobility;
   
-  if (useSumo)
+  // Check if SUMO TCL trace file is provided
+  bool useSumoTrace = !sumoTraceFile.empty ();
+  
+  if (useSumo || useSumoTrace)
     {
-      // Note: SUMO integration requires additional ns3 modules
-      // For now, we use RandomWaypoint as fallback
-      // If you have SUMO integration module installed, uncomment below:
-      /*
-      ueMobility.SetMobilityModel ("ns3::SumoMobilityModel",
-                                    "CommandLine", StringValue (sumoBinary),
-                                    "ConfigFile", StringValue (sumoConfigFile),
-                                    "StartTime", DoubleValue (sumoStartTime),
-                                    "StopTime", DoubleValue (sumoStopTime));
-      */
-      NS_LOG_WARN ("SUMO mobility requested but using RandomWaypoint as fallback.");
-      useSumo = false;
+      if (useSumoTrace)
+        {
+          // Use SUMO TCL trace file with Ns2MobilityHelper
+          NS_LOG_INFO ("Loading SUMO mobility trace from: " << sumoTraceFile);
+          
+          // Ns2MobilityHelper parses ns2-style TCL trace files
+          // The trace file should contain commands like:
+          //   $node_(0) set X_ 400.00
+          //   $node_(0) set Y_ 300.00
+          //   $ns_ at 0.10 "$node_(0) setdest 402.55 300.00 25.50"
+          
+          // Create Ns2MobilityHelper with the trace file
+          // Ns2MobilityHelper parses ns2-style TCL trace files and installs WaypointMobilityModel
+          Ns2MobilityHelper ns2MobilityHelper (sumoTraceFile);
+          
+          // Install the trace on UE nodes
+          // This will apply mobility from the trace file to nodes 0 to (numUes-1)
+          // Note: The trace file must have nodes numbered starting from 0
+          // Nodes in trace file: $node_(0), $node_(1), ..., $node_(N-1) where N = numUes
+          ns2MobilityHelper.Install (ueNodes.Begin (), ueNodes.End ());
+          
+          NS_LOG_INFO ("SUMO TCL trace loaded successfully for " << numUes << " UEs");
+        }
+      else if (useSumo)
+        {
+          // Note: Real-time SUMO integration requires additional ns3 modules
+          // For now, we use RandomWaypoint as fallback
+          // If you have SUMO integration module installed, uncomment below:
+          /*
+          ueMobility.SetMobilityModel ("ns3::SumoMobilityModel",
+                                        "CommandLine", StringValue (sumoBinary),
+                                        "ConfigFile", StringValue (sumoConfigFile),
+                                        "StartTime", DoubleValue (0.0),
+                                        "StopTime", DoubleValue (simTime + 1.0));
+          */
+          NS_LOG_WARN ("SUMO real-time integration not available. Use --sumoTrace option with TCL file.");
+          NS_LOG_WARN ("Falling back to RandomWaypoint mobility.");
+          useSumo = false;
+        }
     }
   
-  if (!useSumo)
+  if (!useSumo && !useSumoTrace)
     {
       // RandomWaypoint mobility (as specified in paper)
       // Speed: uniform distribution between 10 m/s and 60 m/s
@@ -408,9 +442,12 @@ main (int argc, char *argv[])
                                     "Speed", StringValue ("ns3::UniformRandomVariable[Min=10.0|Max=60.0]"),
                                     "Pause", StringValue ("ns3::ConstantRandomVariable[Constant=0.0]"),
                                     "PositionAllocator", PointerValue (positionAlloc));
+      
+      // Install RandomWaypoint mobility model
+      ueMobility.Install (ueNodes);
     }
-
-  ueMobility.Install (ueNodes);
+  
+  // Note: If SUMO trace is used, mobility is already installed above
 
   // Install LTE devices
   NetDeviceContainer gnbDevs = lteHelper->InstallEnbDevice (gnbNodes);
