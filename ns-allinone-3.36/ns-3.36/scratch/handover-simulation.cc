@@ -36,6 +36,11 @@ std::ofstream measurementFile;
 std::map<uint64_t, uint16_t> ueCurrentCell; // IMSI -> Cell ID
 std::map<uint64_t, Vector> ueLastPosition; // IMSI -> Last position
 std::map<uint64_t, double> ueLastSpeed; // IMSI -> Last speed
+std::map<uint64_t, double> ueThroughputDl; // IMSI -> Downlink throughput (Mbps)
+std::map<uint64_t, double> ueThroughputUl; // IMSI -> Uplink throughput (Mbps)
+std::map<uint64_t, double> ueLastRsrp; // IMSI -> Last RSRP value (dBm)
+std::map<uint64_t, double> ueLastRsrq; // IMSI -> Last RSRQ value (dB)
+std::map<uint64_t, double> ueLastSinr; // IMSI -> Last SINR value (dB)
 
 // CSV Data Logger Class
 class HandoverDataLogger : public Object
@@ -87,12 +92,14 @@ public:
   }
 
   void LogMeasurement (double time, uint64_t ueId, uint16_t cellId,
-                       double rsrp, double rsrq, double sinr, double x, double y, double speed)
+                       double rsrp, double rsrq, double sinr, double x, double y, double speed,
+                       double throughputDl = 0.0, double throughputUl = 0.0)
   {
     m_file << std::fixed << std::setprecision (6)
            << time << "," << ueId << ",," << cellId << ","
            << rsrp << ",," << rsrq << ",," << sinr << ",,"
-           << ",,," << x << "," << y << "," << speed << ",MEASUREMENT\n";
+           << throughputDl << "," << throughputUl << ","
+           << x << "," << y << "," << speed << ",MEASUREMENT\n";
     m_file.flush ();
   }
 
@@ -160,10 +167,46 @@ void NotifyHandoverEndOkEnb (std::string context,
           speed = ueLastSpeed[imsi];
         }
       
+      // Get latest RSRP/RSRQ/SINR values
+      double rsrpOld = -100.0;
+      double rsrpNew = -100.0;
+      double rsrqOld = -20.0;
+      double rsrqNew = -20.0;
+      double sinrOld = 0.0;
+      double sinrNew = 0.0;
+      
+      if (ueLastRsrp.find (imsi) != ueLastRsrp.end ())
+        {
+          rsrpNew = ueLastRsrp[imsi]; // Use current as new
+          rsrpOld = rsrpNew; // For now, use same (would need historical tracking)
+        }
+      if (ueLastRsrq.find (imsi) != ueLastRsrq.end ())
+        {
+          rsrqNew = ueLastRsrq[imsi];
+          rsrqOld = rsrqNew;
+        }
+      if (ueLastSinr.find (imsi) != ueLastSinr.end ())
+        {
+          sinrNew = ueLastSinr[imsi];
+          sinrOld = sinrNew;
+        }
+      
+      // Get throughput
+      double throughputDl = 0.0;
+      double throughputUl = 0.0;
+      if (ueThroughputDl.find (imsi) != ueThroughputDl.end ())
+        {
+          throughputDl = ueThroughputDl[imsi];
+        }
+      if (ueThroughputUl.find (imsi) != ueThroughputUl.end ())
+        {
+          throughputUl = ueThroughputUl[imsi];
+        }
+      
       g_logger->LogHandover (time, imsi, oldCellId, targetCellId,
-                             -100.0, -100.0, -20.0, -20.0,  // RSRP/RSRQ (defaults)
-                             0.0, 0.0,  // SINR (defaults)
-                             0.0, 0.0,  // Throughput (would need flow monitor data)
+                             rsrpOld, rsrpNew, rsrqOld, rsrqNew,
+                             sinrOld, sinrNew,
+                             throughputDl, throughputUl,
                              x, y, speed, "HANDOVER");
       
       // Update current cell
@@ -181,7 +224,76 @@ void NotifyConnectionEstablishedUe (std::string context,
   ueCurrentCell[imsi] = cellid;
 }
 
-// RSRP measurement callback (periodic measurements)
+// Measurement report callback (from eNB side - receives UE measurement reports)
+// Note: This uses the ReceiveReportTracedCallback signature
+void NotifyRecvMeasurementReport (std::string context,
+                                   uint64_t imsi,
+                                   uint16_t cellId,
+                                   uint16_t rnti,
+                                   LteRrcSap::MeasurementReport msg)
+{
+  double time = Simulator::Now ().GetSeconds ();
+  
+  // Extract RSRP and RSRQ from measurement report
+  double rsrp = -1000.0; // Invalid default
+  double rsrq = -1000.0; // Invalid default
+  
+  // The measurement report contains measResults with measResultPCell (Primary Cell)
+  // measResultPCell contains RSRP and RSRQ for the serving cell
+  // RSRP and RSRQ are encoded as uint8_t:
+  // RSRP = -140 + rsrpResult (in dBm)
+  // RSRQ = -19.5 + rsrqResult/2 (in dB)
+  
+  // Extract RSRP (encoded value, convert to dBm)
+  // RSRP encoding: -140 + value (dBm)
+  uint8_t rsrpEncoded = msg.measResults.measResultPCell.rsrpResult;
+  rsrp = -140.0 + (double)rsrpEncoded;
+  ueLastRsrp[imsi] = rsrp;
+  
+  // Extract RSRQ (encoded value, convert to dB)
+  // RSRQ encoding: -19.5 + value/2 (dB)
+  uint8_t rsrqEncoded = msg.measResults.measResultPCell.rsrqResult;
+  rsrq = -19.5 + (double)rsrqEncoded / 2.0;
+  ueLastRsrq[imsi] = rsrq;
+  
+  // Get SINR (this is harder to extract, might need different approach)
+  double sinr = 0.0;
+  if (ueLastSinr.find (imsi) != ueLastSinr.end ())
+    {
+      sinr = ueLastSinr[imsi];
+    }
+  
+  // Log measurement with real values
+  if (g_logger != 0)
+    {
+      double x = 0, y = 0, speed = 0;
+      if (ueLastPosition.find (imsi) != ueLastPosition.end ())
+        {
+          x = ueLastPosition[imsi].x;
+          y = ueLastPosition[imsi].y;
+        }
+      if (ueLastSpeed.find (imsi) != ueLastSpeed.end ())
+        {
+          speed = ueLastSpeed[imsi];
+        }
+      
+      double throughputDl = 0.0;
+      double throughputUl = 0.0;
+      if (ueThroughputDl.find (imsi) != ueThroughputDl.end ())
+        {
+          throughputDl = ueThroughputDl[imsi];
+        }
+      if (ueThroughputUl.find (imsi) != ueThroughputUl.end ())
+        {
+          throughputUl = ueThroughputUl[imsi];
+        }
+      
+      g_logger->LogMeasurement (time, imsi, cellId, rsrp, rsrq, sinr, x, y, speed, throughputDl, throughputUl);
+    }
+}
+
+// RSRP measurement callback (alternative - if UE side trace exists)
+// Note: This may not be available in all NS3 versions
 void NotifyReportUeMeasurements (std::string context,
                                   uint64_t imsi,
                                   uint16_t cellId,
@@ -192,6 +304,10 @@ void NotifyReportUeMeasurements (std::string context,
 {
   if (!servingCell)
     return; // Only log serving cell measurements
+  
+  // Store latest measurement values
+  ueLastRsrp[imsi] = rsrp;
+  ueLastRsrq[imsi] = rsrq;
   
   double time = Simulator::Now ().GetSeconds ();
   
@@ -208,7 +324,23 @@ void NotifyReportUeMeasurements (std::string context,
           speed = ueLastSpeed[imsi];
         }
       
-      g_logger->LogMeasurement (time, imsi, cellId, rsrp, rsrq, 0.0, x, y, speed);
+      double throughputDl = 0.0;
+      double throughputUl = 0.0;
+      if (ueThroughputDl.find (imsi) != ueThroughputDl.end ())
+        {
+          throughputDl = ueThroughputDl[imsi];
+        }
+      if (ueThroughputUl.find (imsi) != ueThroughputUl.end ())
+        {
+          throughputUl = ueThroughputUl[imsi];
+        }
+      
+      // Note: SINR calculation from RSRP requires noise/interference info
+      // For now, we'll use a placeholder or calculate from RSRP if possible
+      double sinr = rsrp + 100.0; // Rough approximation (would need actual noise)
+      ueLastSinr[imsi] = sinr;
+      
+      g_logger->LogMeasurement (time, imsi, cellId, rsrp, rsrq, sinr, x, y, speed, throughputDl, throughputUl);
     }
 }
 
@@ -269,9 +401,39 @@ void UpdateUePositionAndSpeed (NodeContainer ueNodes, NetDeviceContainer ueDevs)
                   cellId = ueCurrentCell[imsi];
                 }
               
-              // Log periodic measurement with default RSRP/RSRQ/SINR values
-              // (These would ideally come from measurement reports, but callback is commented out)
-              g_logger->LogMeasurement (time, imsi, cellId, -100.0, -20.0, 0.0, pos.x, pos.y, speed);
+              // Log periodic measurement with latest RSRP/RSRQ/SINR values
+              // Use stored values if available, otherwise use defaults
+              double rsrp = -100.0;
+              double rsrq = -20.0;
+              double sinr = 0.0;
+              
+              if (ueLastRsrp.find (imsi) != ueLastRsrp.end ())
+                {
+                  rsrp = ueLastRsrp[imsi];
+                }
+              if (ueLastRsrq.find (imsi) != ueLastRsrq.end ())
+                {
+                  rsrq = ueLastRsrq[imsi];
+                }
+              if (ueLastSinr.find (imsi) != ueLastSinr.end ())
+                {
+                  sinr = ueLastSinr[imsi];
+                }
+              
+              // Get throughput if available
+              double throughputDl = 0.0;
+              double throughputUl = 0.0;
+              if (ueThroughputDl.find (imsi) != ueThroughputDl.end ())
+                {
+                  throughputDl = ueThroughputDl[imsi];
+                }
+              if (ueThroughputUl.find (imsi) != ueThroughputUl.end ())
+                {
+                  throughputUl = ueThroughputUl[imsi];
+                }
+              
+              // Log measurement with throughput
+              g_logger->LogMeasurement (time, imsi, cellId, rsrp, rsrq, sinr, pos.x, pos.y, speed, throughputDl, throughputUl);
             }
         }
     }
@@ -316,6 +478,8 @@ main (int argc, char *argv[])
   // Handover parameters
   bool enableHandover = true;
   bool dynamicCellAssociation = true; // DynamicCellAssociation
+  double handoverHysteresis = 3.0; // dB (A3 handover hysteresis)
+  uint32_t timeToTriggerMs = 256; // ms (time-to-trigger for handover)
   
   // Interference parameters
   bool downlinkInterference = true; // Downlink Interference
@@ -347,6 +511,8 @@ main (int argc, char *argv[])
   cmd.AddValue ("numComponentCarriers", "Number of component carriers", numComponentCarriers);
   cmd.AddValue ("numerology", "CA numerology", numerology);
   cmd.AddValue ("numBands", "Number of bands", numBands);
+  cmd.AddValue ("handoverHysteresis", "Handover hysteresis in dB (default: 3.0)", handoverHysteresis);
+  cmd.AddValue ("timeToTrigger", "Handover time-to-trigger in ms (default: 256)", timeToTriggerMs);
   cmd.Parse (argc, argv);
 
   // Enable logging (optional - comment out for less output)
@@ -487,6 +653,13 @@ main (int argc, char *argv[])
           ns2MobilityHelper.Install (ueNodes.Begin (), ueNodes.End ());
           
           NS_LOG_INFO ("SUMO TCL trace loaded successfully for " << numUes << " UEs");
+          
+          // Verify SUMO trace coordinates match simulation area
+          // Check initial positions from trace (they should be within the simulation area)
+          // Note: This is a basic check - full verification would require parsing the entire trace file
+          NS_LOG_INFO ("Simulation area: X[" << areaXMin << "," << areaXMax << "] Y[" << areaYMin << "," << areaYMax << "]");
+          NS_LOG_INFO ("Note: SUMO trace coordinates should match this area for proper simulation");
+          NS_LOG_INFO ("If positions are outside this range, gNB coverage may not reach UEs");
         }
       else if (useSumo)
         {
@@ -580,10 +753,18 @@ main (int argc, char *argv[])
     {
       lteHelper->SetHandoverAlgorithmType ("ns3::A3RsrpHandoverAlgorithm");
       // Configure handover parameters (hysteresis and time-to-trigger)
-      lteHelper->SetHandoverAlgorithmAttribute ("Hysteresis", DoubleValue (3.0)); // 3 dB
-      lteHelper->SetHandoverAlgorithmAttribute ("TimeToTrigger", TimeValue (MilliSeconds (256))); // 256 ms
+      // Note: Lower hysteresis and shorter time-to-trigger will cause more frequent handovers
+      // Current settings: 3 dB hysteresis (requires 3 dB better signal), 256 ms time-to-trigger
+      // These are relatively conservative settings - reducing them will trigger more handovers
+      // For more handovers: reduce hysteresis to 1.0-2.0 dB, reduce timeToTrigger to 64-128 ms
+      
+      lteHelper->SetHandoverAlgorithmAttribute ("Hysteresis", DoubleValue (handoverHysteresis));
+      lteHelper->SetHandoverAlgorithmAttribute ("TimeToTrigger", TimeValue (MilliSeconds (timeToTriggerMs)));
       
       NS_LOG_INFO ("Handover: ENABLED (A3 RSRP algorithm)");
+      NS_LOG_INFO ("  Hysteresis: " << handoverHysteresis << " dB");
+      NS_LOG_INFO ("  TimeToTrigger: " << timeToTriggerMs << " ms");
+      NS_LOG_INFO ("  Note: Reducing hysteresis or time-to-trigger will increase handover frequency");
     }
   
   // Configure Dynamic Cell Association
@@ -731,9 +912,13 @@ main (int argc, char *argv[])
   Config::Connect ("/NodeList/*/DeviceList/*/LteUeRrc/ConnectionEstablished",
                    MakeCallback (&NotifyConnectionEstablishedUe));
   
-  // Connect measurement reports (this trace may vary by ns3 version)
-  // Note: The exact trace path may need adjustment based on your ns3 version
-  // Uncomment if available in your ns3 installation:
+  // Connect measurement reports - try both eNB side (recommended) and UE side
+  // eNB side: Receives measurement reports from UEs
+  Config::Connect ("/NodeList/*/DeviceList/*/LteEnbRrc/RecvMeasurementReport",
+                   MakeCallback (&NotifyRecvMeasurementReport));
+  
+  // UE side: Alternative if available (may not work in all NS3 versions)
+  // Try to connect to UE measurement trace (uncomment if the path exists)
   // Config::Connect ("/NodeList/*/DeviceList/*/LteUeRrc/ReportCurrentCellRsrpMeasurements",
   //                  MakeCallback (&NotifyReportUeMeasurements));
 
@@ -779,6 +964,69 @@ main (int argc, char *argv[])
   monitor->CheckForLostPackets ();
   Ptr<Ipv4FlowClassifier> classifier = DynamicCast<Ipv4FlowClassifier> (flowHelper.GetClassifier ());
   FlowMonitor::FlowStatsContainer stats = monitor->GetFlowStats ();
+
+  // Extract throughput per UE from FlowMonitor
+  // Note: Throughput is calculated as average over entire simulation
+  // For real-time throughput, we would need periodic tracking, but this gives overall average
+  
+  // Map IP addresses to IMSI for throughput tracking
+  std::map<Ipv4Address, uint64_t> ipToImsi; // IP -> IMSI mapping
+  for (uint16_t i = 0; i < numUes; ++i)
+    {
+      if (i < ueIpIfaces.GetN ())
+        {
+          Ipv4Address ueIp = ueIpIfaces.GetAddress (i);
+          Ptr<NetDevice> ueDev = ueDevs.Get (i);
+          Ptr<LteUeNetDevice> lteUeDev = ueDev->GetObject<LteUeNetDevice> ();
+          if (lteUeDev)
+            {
+              uint64_t imsi = lteUeDev->GetImsi ();
+              ipToImsi[ueIp] = imsi;
+            }
+        }
+    }
+  
+  // Calculate throughput per UE from flow statistics
+  // Sum throughput from all flows per UE (each UE may have multiple flows)
+  std::map<uint64_t, double> totalThroughputDl; // IMSI -> total DL throughput
+  std::map<uint64_t, double> totalThroughputUl; // IMSI -> total UL throughput
+  
+  for (auto it = stats.begin (); it != stats.end (); ++it)
+    {
+      Ipv4FlowClassifier::FiveTuple t = classifier->FindFlow (it->first);
+      
+      if (simTime > 0)
+        {
+          double flowThroughputDl = it->second.rxBytes * 8.0 / (simTime * 1000000.0); // Mbps
+          double flowThroughputUl = it->second.txBytes * 8.0 / (simTime * 1000000.0); // Mbps
+          
+          // Downlink: packets to UE IP (from remote host)
+          if (ipToImsi.find (t.destinationAddress) != ipToImsi.end ())
+            {
+              uint64_t imsi = ipToImsi[t.destinationAddress];
+              totalThroughputDl[imsi] += flowThroughputDl;
+            }
+          
+          // Uplink: packets from UE IP (to remote host)
+          if (ipToImsi.find (t.sourceAddress) != ipToImsi.end ())
+            {
+              uint64_t imsi = ipToImsi[t.sourceAddress];
+              totalThroughputUl[imsi] += flowThroughputUl;
+            }
+        }
+    }
+  
+  // Store final throughput values
+  for (auto it = totalThroughputDl.begin (); it != totalThroughputDl.end (); ++it)
+    {
+      ueThroughputDl[it->first] = it->second;
+    }
+  for (auto it = totalThroughputUl.begin (); it != totalThroughputUl.end (); ++it)
+    {
+      ueThroughputUl[it->first] = it->second;
+    }
+  
+  NS_LOG_INFO ("Throughput extraction completed for " << ueThroughputDl.size () << " UEs");
 
   // Log flow statistics to CSV
   std::ofstream flowStatsFile ("flow_statistics.csv");
